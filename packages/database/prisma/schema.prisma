@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FollowerStatus { KNOWN UNKNOWN }
+enum AccountType { PERSONAL BUSINESS CREATOR UNKNOWN }
+enum ImportStatus { PENDING PROCESSING COMPLETED FAILED CANCELLED }
+enum AnalysisStatus { PENDING PROCESSING COMPLETED FAILED CANCELLED }
+enum PipelineStatus { DISCOVERED ANALYZED SHORTLISTED READY_TO_CONTACT CONTACTED REPLIED RELATIONSHIP_BUILDING CONNECTED ARCHIVED }
+enum ProfessionalCategory { TECH_LEADER FOUNDER RECRUITER ENGINEER CREATOR EXECUTIVE COLLABORATOR UNKNOWN }
+enum EvidenceSourceType { IMPORT MANUAL INSTAGRAM_GRAPH AUTHORIZED_COMMENT USER_NOTE AI_ASSESSMENT }
+enum InteractionType { COMMENT MESSAGE_METADATA MANUAL_NOTE OTHER }
+
+model User {
+  id             String @id @default(cuid())
+  email          String @unique
+  passwordHash   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contacts       Contact[]
+  goals          NetworkingGoalConfig[]
+  auditLogs      AuditLog[]
+}
+
+model Contact {
+  id                    String @id @default(cuid())
+  userId                String
+  instagramUsername     String
+  instagramUserId       String?
+  displayName           String?
+  biography             String?
+  profession            String?
+  jobTitle              String?
+  company               String?
+  professionalInterests String[] @default([])
+  accountType           AccountType @default(UNKNOWN)
+  profileUrl            String?
+  followerStatus        FollowerStatus @default(UNKNOWN)
+  dataSource            String
+  profileLastCheckedAt  DateTime?
+  personalNotes         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evidence              ContactEvidence[]
+  interactions          ContactInteraction[]
+  assessments           NetworkingAssessment[]
+  pipeline              NetworkingPipeline?
+
+  @@unique([userId, instagramUsername])
+  @@index([userId, instagramUsername])
+  @@index([userId, profession])
+  @@index([userId, followerStatus])
+}
+
+model ContactEvidence {
+  id            String @id @default(cuid())
+  contactId     String
+  sourceType    EvidenceSourceType
+  sourceUrl     String?
+  fieldName     String
+  observedValue String
+  observedAt    DateTime @default(now())
+  contact       Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([contactId, observedAt])
+}
+
+model ContactInteraction {
+  id              String @id @default(cuid())
+  contactId       String
+  interactionType InteractionType
+  externalId      String?
+  content         String?
+  occurredAt      DateTime
+  contact         Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@unique([contactId, externalId])
+  @@index([contactId, occurredAt])
+}
+
+model NetworkingAssessment {
+  id                  String @id @default(cuid())
+  contactId           String
+  category            ProfessionalCategory
+  relevanceScore      Int
+  confidenceScore     Float
+  professionalSummary String
+  rationale           String
+  opportunities       String[]
+  suggestedApproach   String
+  suggestedMessage    String
+  evidence            Json
+  topics              String[] @default([])
+  missingInformation  String[] @default([])
+  modelVersion        String
+  inputHash           String
+  analyzedAt          DateTime @default(now())
+  contact             Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([contactId, analyzedAt])
+  @@index([category, relevanceScore])
+}
+
+model NetworkingPipeline {
+  id               String @id @default(cuid())
+  contactId        String @unique
+  status           PipelineStatus @default(DISCOVERED)
+  priority         Int @default(0)
+  personalNotes    String?
+  lastContactedAt  DateTime?
+  nextFollowUpAt   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  contact          Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([status, priority])
+  @@index([nextFollowUpAt])
+}
+
+model ImportJob {
+  id               String @id @default(cuid())
+  userId           String
+  filename         String
+  status           ImportStatus @default(PENDING)
+  totalRecords     Int @default(0)
+  importedRecords  Int @default(0)
+  duplicateRecords Int @default(0)
+  invalidRecords   Int @default(0)
+  errors           Json?
+  createdAt        DateTime @default(now())
+  completedAt      DateTime?
+  @@index([userId, createdAt])
+}
+
+model AnalysisJob {
+  id             String @id @default(cuid())
+  userId         String
+  status         AnalysisStatus @default(PENDING)
+  totalContacts  Int @default(0)
+  processedContacts Int @default(0)
+  failedContacts Int @default(0)
+  cancelledAt    DateTime?
+  tokenUsage     Int @default(0)
+  estimatedCostUsd Decimal @default(0) @db.Decimal(12, 6)
+  actualCostUsd  Decimal @default(0) @db.Decimal(12, 6)
+  errorLog       Json?
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+  @@index([userId, createdAt])
+}
+
+model NetworkingGoalConfig {
+  id        String @id @default(cuid())
+  userId    String
+  name      String
+  goals     String[]
+  weights   Json
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, active])
+}
+
+model AuditLog {
+  id        String @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}

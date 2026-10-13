@@ -1,0 +1,23 @@
+{
+  "name": "instagram-networking-agent",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "concurrently -n api,web,worker -c blue,magenta,green \"pnpm --filter @ina/api dev\" \"pnpm --filter @ina/web dev\" \"pnpm --filter @ina/worker dev\"",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @ina/web test:e2e",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "db:generate": "pnpm --filter @ina/database prisma:generate",
+    "db:migrate": "pnpm --filter @ina/database prisma:migrate",
+    "db:seed": "pnpm --filter @ina/database prisma:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.8"
+  }
+}

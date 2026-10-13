@@ -1,0 +1,6 @@
+{
+  "name": "@ina/ai", "version": "0.1.0", "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "build": "tsc --noEmit", "test": "vitest run", "lint": "tsc --noEmit" },
+  "dependencies": { "@anthropic-ai/sdk": "^0.71.2", "@ina/shared": "workspace:*", "zod": "^4.1.12" }, "devDependencies": { "vitest": "^4.0.8" }
+}
