@@ -1,41 +1,41 @@
-# Nexo — Instagram Networking Intelligence Agent
+# Nexo
 
-Uma plataforma de inteligência para networking profissional a partir de contatos do Instagram fornecidos pelo usuário. Ela importa usernames, permite enriquecimento manual autorizado, classifica contexto profissional disponível, calcula uma prioridade explicável e acompanha relações — sem scraping, sem automação de DMs e sem inventar dados.
+Nexo is a professional networking intelligence platform for contacts you import from Instagram. It turns an authorized list of usernames into an organized networking workflow: enrich available professional context, assess relevance, prioritize opportunities, and keep track of relationship follow-ups.
 
-> Status: MVP funcional com modo demonstração. Interface e documentação em português do Brasil.
+> Status: functional MVP with a fully self-contained demo mode. The product interface is intentionally in Brazilian Portuguese.
 
-## Para que serve
+## What it does
 
-O Nexo transforma uma lista de contatos que você já possui em uma fila de networking profissional mais fácil de administrar. Em vez de abordar pessoas em massa, o produto ajuda a encontrar contexto disponível, organizar oportunidades e preparar uma conversa breve baseada em evidências reais.
+Nexo helps you identify people worth getting to know professionally without resorting to bulk outreach or fabricated profile data.
 
 ```text
-Importar contatos → complementar informação autorizada → analisar → priorizar → acompanhar no pipeline
+Import contacts → add authorized context → analyze → prioritize → manage the relationship pipeline
 ```
 
-## O que funciona no MVP
+## MVP capabilities
 
-- Importação idempotente de CSV, JSON, formatos comuns de exportação do Instagram e usernames manuais.
-- Dashboard em português do Brasil, lista pesquisável e filtrável, detalhes do contato, quadro de pipeline, oportunidades e configurações.
-- Dados manuais com proveniência/evidência e exclusão de contatos.
-- Avaliação estruturada por Claude quando há chave configurada; motor determinístico de demonstração quando não há.
-- Ranking separado da IA, com pesos configuráveis e explicação por fator.
-- Adaptador oficial Instagram Graph API que declara cada capacidade como disponível, indisponível, não autorizada, não suportada, com erro ou limitada por taxa.
-- Fila BullMQ com tentativas exponenciais, concorrência e limite configuráveis. No modo demo, a API executa o pequeno lote localmente para não exigir Redis.
-- Perfis totalmente fictícios de CTO, Staff Engineer, founder, recrutador, engineering manager, desenvolvedor, criadora e perfil sem informação.
+- Idempotent CSV, JSON, common Instagram export, and manual username imports.
+- Brazilian Portuguese dashboard with searchable contacts, contact details, networking opportunities, settings, and a relationship pipeline.
+- Manual data enrichment with per-field provenance/evidence and contact deletion.
+- Claude-powered structured assessments when configured, plus a deterministic local demo engine when it is not.
+- An explainable, configurable scoring engine separate from the AI model.
+- An official Instagram Graph API adapter that reports each capability as available, unavailable, unauthorized, unsupported, failed, or rate-limited.
+- BullMQ queue definitions with exponential retries, configurable concurrency, rate limits, and partial-failure recovery.
+- Fictional demo data: CTO, Staff Engineer, founder, recruiter, engineering manager, developer, technology creator, and a profile with missing information.
 
-## Teste em três minutos
+## Try it in three minutes
 
-1. Inicie o projeto com `pnpm dev` e abra `http://localhost:3000`.
-2. Em **Importar**, valide o CSV de exemplo já preenchido e confirme a importação.
-3. Em **Contatos**, selecione um ou mais perfis e escolha **Analisar selecionados**.
-4. Abra um contato para revisar evidências, score, oportunidades e a mensagem sugerida; copie a mensagem somente depois de revisá-la.
-5. Salve o perfil no **Pipeline** e avance-o pelas etapas de relacionamento.
+1. Start the project with `pnpm dev` and open `http://localhost:3000`.
+2. Go to **Importar**, validate the prefilled example CSV, and confirm the import.
+3. Go to **Contatos**, select one or more people, then choose **Analisar selecionados**.
+4. Open a contact to review evidence, score, opportunities, and the suggested first message. Copy it only after reviewing it.
+5. Save the contact to the **Pipeline** and move it through your relationship stages.
 
-O modo demonstração já inclui perfis fictícios. Ele é seguro para apresentações: não chama Meta, Claude nem envia mensagens.
+Demo mode ships with fictional profiles and is safe for presentations: it does not call Meta or Claude, and it never sends messages.
 
-## Início rápido
+## Quick start
 
-Pré-requisitos: Node.js 24+, pnpm 11+ e Docker (opcional para o modo demonstração).
+Prerequisites: Node.js 24+, pnpm 11+, and Docker (optional for demo mode).
 
 ```bash
 cp .env.example .env
@@ -43,9 +43,9 @@ pnpm install
 pnpm dev
 ```
 
-Abra `http://localhost:3000`. Com `DEMO_MODE=true`, a API inicia em `http://localhost:3001` e carrega dados fictícios; não são necessárias chaves, Postgres nem Redis para experimentar o fluxo.
+Open `http://localhost:3000`. With `DEMO_MODE=true`, the API starts at `http://localhost:3001` and loads fictional data. No API keys, PostgreSQL, or Redis are required to explore the product.
 
-Para infraestrutura persistente:
+For persistent infrastructure:
 
 ```bash
 docker compose up -d
@@ -54,56 +54,52 @@ pnpm db:seed
 pnpm dev
 ```
 
-Ao usar `DEMO_MODE=false`, a API persiste contatos, evidências, pipeline e avaliações no PostgreSQL. Redis é usado pelo worker para processamentos em lote; o modo demonstração dispensa os dois serviços.
+With `DEMO_MODE=false`, the API persists contacts, evidence, pipeline state, and assessments in PostgreSQL. Redis powers production batch processing; demo mode does not need either service.
 
-## Arquitetura
+## Architecture
 
-| Camada | Tecnologia | Responsabilidade |
+| Layer | Stack | Responsibility |
 | --- | --- | --- |
-| Web | Next.js App Router, TypeScript, Tailwind, TanStack Query/Table | Dashboard, importação, contatos, oportunidades e pipeline. |
-| API | Fastify, Zod | REST, validação, dados manuais, análise e autorização de capabilities. |
-| Dados | PostgreSQL, schema/migrations Prisma | Contatos, evidências, avaliações, pipeline, jobs e auditoria. |
-| Processamento | Redis e BullMQ | Análise em lote, progresso, backoff e recuperação parcial. |
-| IA | Claude ou motor demo | Extração estruturada e mensagem contextual; score final é determinístico. |
+| Web | Next.js App Router, TypeScript, Tailwind, TanStack Query/Table | Dashboard, imports, contacts, opportunities, and pipeline. |
+| API | Fastify, Zod | REST API, validation, manual data, assessments, and capability checks. |
+| Data | PostgreSQL, Prisma schema/migrations | Contacts, evidence, assessments, pipeline, jobs, and audit records. |
+| Processing | Redis and BullMQ | Batch analysis, progress, backoff, and partial recovery. |
+| AI | Claude or demo engine | Structured extraction and contextual messaging; final scoring is deterministic. |
 
-## Comandos
+## Commands
 
 ```bash
-pnpm build       # valida TypeScript em todos os pacotes
-pnpm test        # testes unitários e de integração
-pnpm test:e2e    # cenário Playwright (requer navegadores instalados)
+pnpm build       # TypeScript validation across all workspaces
+pnpm test        # unit and integration tests
+pnpm test:e2e    # Playwright end-to-end scenario
 pnpm lint
-pnpm db:generate # necessário somente para consumir PrismaClient gerado
+pnpm db:generate # only needed when consuming a generated PrismaClient
 pnpm db:migrate
 pnpm db:seed
 ```
 
-## Configuração de integrações
+## Configuration
 
-As chaves vivem somente em `.env` no servidor. Preencha `ANTHROPIC_API_KEY` e desative `DEMO_MODE` para usar Claude. Para Meta, configure uma conta Business/Creator elegível, token, ID da conta e as permissões aprovadas. O painel mostra a checagem individual de capacidades; a aplicação não trata uma integração configurada como automaticamente autorizada.
+Secrets remain server-side in `.env`. Set `ANTHROPIC_API_KEY` and disable `DEMO_MODE` to use Claude. For Meta, configure an eligible Business/Creator account, an access token, account ID, and approved permissions. The settings screen checks each API capability independently—it never assumes a configured integration is authorized.
 
-Veja a documentação em [docs](docs/architecture.md): arquitetura, banco, classificação, segurança, integração Instagram e implantação.
-
-### Variáveis principais
-
-| Variável | Quando usar |
+| Variable | Use |
 | --- | --- |
-| `DEMO_MODE=true` | Padrão recomendado para experimentar sem serviços externos. |
-| `DATABASE_URL` | Necessária para persistência fora do modo demo. |
-| `REDIS_URL` | Necessária para o worker BullMQ de produção. |
-| `ANTHROPIC_API_KEY` | Habilita análise por Claude somente no servidor. |
-| `ANTHROPIC_MODEL` | Escolhe o modelo Claude. |
-| `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` | Habilitam apenas capabilities oficiais elegíveis da Meta. |
+| `DEMO_MODE=true` | Recommended default for trying the product without external services. |
+| `DATABASE_URL` | Required for persistence outside demo mode. |
+| `REDIS_URL` | Required by the production BullMQ worker. |
+| `ANTHROPIC_API_KEY` | Enables server-side Claude assessments. |
+| `ANTHROPIC_MODEL` | Selects the Claude model. |
+| `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` | Enables eligible official Meta capabilities only. |
 
-## Limitações importantes
+## Privacy and platform limits
 
-- A API oficial não é um endpoint de enumeração completa de seguidores. A lista deve ser importada pelo usuário.
-- Não são buscadas biografias arbitrárias. Descoberta oficial, quando disponível, restringe-se a contas profissionais elegíveis e permissões/caminho de autenticação adequados.
-- Não há scraping, APIs privadas, automação de navegador, proxies, bypass de CAPTCHA ou rotação de contas.
-- O MVP só gera, permite editar e copiar mensagens; nunca envia DMs automaticamente.
-- O modo demo deliberadamente usa memória para poder iniciar sem infraestrutura; fora dele, os dados são persistidos no PostgreSQL.
+- The official Instagram API is not a complete follower-enumeration endpoint. Follower lists must be imported by the user.
+- Nexo does not retrieve arbitrary biographies. Official discovery, when available, is limited to eligible professional accounts and the applicable permissions.
+- No scraping, private APIs, browser automation, proxy rotation, CAPTCHA bypassing, or account rotation is used.
+- The MVP only generates, reviews, edits, and copies messages. It never sends Instagram DMs automatically.
+- Demo mode is intentionally in-memory; outside demo mode, data is persisted in PostgreSQL.
 
-## Desenvolvimento e qualidade
+## Quality
 
 ```bash
 pnpm test
@@ -112,6 +108,6 @@ pnpm build
 pnpm test:e2e
 ```
 
-Os testes cobrem normalização, importação, deduplicação, exportação, ranking, saída de IA, informações ausentes, capabilities e rate limit do Instagram, política de retries e workflow REST. O cenário Playwright percorre importação, análise, detalhe, pipeline e cópia de mensagem com integrações simuladas.
+The suite covers username normalization, importing, deduplication, export parsing, scoring, AI output validation, missing information, Instagram capabilities and rate limits, retry policy, and REST workflows. The Playwright scenario walks through import, analysis, assessment review, pipeline save, and message copying with mocked integrations.
 
-Para detalhes de privacidade, LGPD, implantação e limites da integração Instagram, consulte a pasta [docs](docs/).
+For architecture, database, AI classification, security, deployment, LGPD considerations, and Instagram integration research, see [docs](docs/).
