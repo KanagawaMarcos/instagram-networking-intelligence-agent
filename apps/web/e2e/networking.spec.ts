@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 
 test("importa, analisa, prioriza e copia uma mensagem", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Comece com os dados certos." })).toBeVisible();
+  await page.getByRole("button", { name: "Abrir demonstração" }).click();
   await expect(page.getByRole("heading", { name: "Seu networking, com contexto." })).toBeVisible();
   await page.getByRole("link", { name: /Importar contatos/ }).click();
   await page.getByRole("button", { name: "Validar e visualizar" }).click();

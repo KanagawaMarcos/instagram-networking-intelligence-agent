@@ -15,6 +15,8 @@ export type Pipeline = { status: PipelineStatus; priority: number; personalNotes
 export type ImportJob = { id: string; filename: string; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"; totalRecords: number; importedRecords: number; duplicateRecords: number; invalidRecords: number; errors: unknown[]; createdAt: string; completedAt?: string };
 export type AnalysisJob = { id: string; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"; totalContacts: number; processedContacts: number; failedContacts: number; tokenUsage: number; estimatedCostUsd: number; actualCostUsd: number; errors: unknown[]; createdAt: string; completedAt?: string };
 export type GoalConfig = { id: string; name: string; goals: NetworkingGoal[]; weights: typeof defaultScoringWeights; active: boolean };
+export type OnboardingMode = "DEMO" | "LIVE";
+export type OnboardingState = { completed: boolean; mode?: OnboardingMode; completedAt?: string; connectedAccount?: { instagramUserId?: string; username?: string; displayName?: string; accountType?: string } };
 
 export class MemoryStore {
   contacts = new Map<string, Contact>();
@@ -22,6 +24,7 @@ export class MemoryStore {
   analyses = new Map<string, AnalysisJob>();
   goals: GoalConfig[] = [{ id: "default", name: "Networking em tecnologia", goals: ["FOUNDERS", "TECH_LEADERS", "SENIOR_ENGINEERS", "RECRUITERS"], weights: defaultScoringWeights, active: true }];
   audit: Array<{ action: string; entity: string; entityId?: string; at: string }> = [];
+  onboarding: OnboardingState = { completed: false };
 
   addContact(input: Omit<Contact, "id" | "createdAt" | "updatedAt" | "pipeline" | "evidence" | "interactions" | "professionalInterests"> & Partial<Pick<Contact, "professionalInterests" | "pipeline" | "evidence" | "interactions">>): Contact {
     const existing = [...this.contacts.values()].find((contact) => contact.instagramUsername === input.instagramUsername);
@@ -37,6 +40,12 @@ export class MemoryStore {
   deleteContact(id: string) { const removed = this.contacts.delete(id); if (removed) this.audit.push({ action: "CONTACT_DELETED", entity: "Contact", entityId: id, at: new Date().toISOString() }); return removed; }
   async persistContact(_contact: Contact): Promise<void> { /* armazenamento efêmero no modo demo */ }
   async removeContact(id: string): Promise<boolean> { return this.deleteContact(id); }
+  async completeOnboarding(state: Omit<OnboardingState, "completed" | "completedAt">): Promise<OnboardingState> {
+    const completedAt = new Date().toISOString();
+    this.onboarding = { completed: true, ...state, completedAt };
+    this.audit.push({ action: "ONBOARDING_COMPLETED", entity: "Onboarding", at: completedAt });
+    return this.onboarding;
+  }
   async close(): Promise<void> { /* sem recursos externos no modo demo */ }
 }
 

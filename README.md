@@ -26,12 +26,13 @@ Import contacts → add authorized context → analyze → prioritize → manage
 ## Try it in three minutes
 
 1. Start the project with `pnpm dev` and open `http://localhost:3000`.
-2. Go to **Importar**, validate the prefilled example CSV, and confirm the import.
-3. Go to **Contatos**, select one or more people, then choose **Analisar selecionados**.
-4. Open a contact to review evidence, score, opportunities, and the suggested first message. Copy it only after reviewing it.
-5. Save the contact to the **Pipeline** and move it through your relationship stages.
+2. On first launch, connect an already-authorized official Meta integration, or explicitly choose **Abrir demonstração** to use fictional data.
+3. Import your follower export in **Importar**, then validate and confirm it.
+4. Go to **Contatos**, select one or more people, then choose **Analisar selecionados**.
+5. Open a contact to review evidence, score, opportunities, and the suggested first message. Copy it only after reviewing it.
+6. Save the contact to the **Pipeline** and move it through your relationship stages.
 
-Demo mode ships with fictional profiles and is safe for presentations: it does not call Meta or Claude, and it never sends messages.
+Demo mode is opt-in and ships with fictional profiles. It is safe for presentations: it does not call Meta or Claude, and it never sends messages.
 
 ## Quick start
 
@@ -43,7 +44,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000`. With `DEMO_MODE=true`, the API starts at `http://localhost:3001` and loads fictional data. No API keys, PostgreSQL, or Redis are required to explore the product.
+Open `http://localhost:3000`. With `DEMO_MODE=true`, the API starts at `http://localhost:3001`. The first-run onboarding does not load fictional contacts automatically: choose **Abrir demonstração** to seed its local sample data. No API keys, PostgreSQL, or Redis are required to explore the product.
 
 For persistent infrastructure:
 
@@ -97,7 +98,7 @@ Secrets remain server-side in `.env`. Set `ANTHROPIC_API_KEY` and disable `DEMO_
 - Nexo does not retrieve arbitrary biographies. Official discovery, when available, is limited to eligible professional accounts and the applicable permissions.
 - No scraping, private APIs, browser automation, proxy rotation, CAPTCHA bypassing, or account rotation is used.
 - The MVP only generates, reviews, edits, and copies messages. It never sends Instagram DMs automatically.
-- Demo mode is intentionally in-memory; outside demo mode, data is persisted in PostgreSQL.
+- Demo mode is intentionally in-memory and opt-in; outside demo mode, data is persisted in PostgreSQL.
 
 ## Quality
 

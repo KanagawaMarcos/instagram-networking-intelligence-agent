@@ -22,9 +22,9 @@ function contactView(contact: Contact, goals: NetworkingGoal[], weights = defaul
 export async function buildApp(options: AppOptions = {}) {
   const config = options.config ?? loadConfig();
   const store = options.store ?? (config.DEMO_MODE ? new MemoryStore() : await PostgresStore.create(config.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/instagram_networking?schema=public"));
-  const provider = options.provider ?? (config.DEMO_MODE ? new MockInstagramProvider() : new InstagramGraphProvider({ accessToken: config.INSTAGRAM_ACCESS_TOKEN, accountId: config.INSTAGRAM_ACCOUNT_ID, apiVersion: config.INSTAGRAM_GRAPH_API_VERSION }));
+  const instagramConfigured = Boolean(config.INSTAGRAM_ACCESS_TOKEN && config.INSTAGRAM_ACCOUNT_ID);
+  const provider = options.provider ?? (instagramConfigured ? new InstagramGraphProvider({ accessToken: config.INSTAGRAM_ACCESS_TOKEN, accountId: config.INSTAGRAM_ACCOUNT_ID, apiVersion: config.INSTAGRAM_GRAPH_API_VERSION }) : new MockInstagramProvider());
   const ai = createAnalysisEngine({ apiKey: config.ANTHROPIC_API_KEY, model: config.ANTHROPIC_MODEL, demoMode: config.DEMO_MODE });
-  if (config.DEMO_MODE && store.contacts.size === 0) seedDemo(store);
   const app = Fastify({ logger: config.NODE_ENV !== "test" });
   await app.register(cors, { origin: true });
   app.setErrorHandler((error, _request, reply) => reply.code(400).send({ error: error instanceof Error ? error.message : "Erro de validação" }));
@@ -42,6 +42,31 @@ export async function buildApp(options: AppOptions = {}) {
   }
 
   app.get("/health", async () => ({ status: "ok", demoMode: config.DEMO_MODE, persistence: config.DEMO_MODE ? "memory-demo" : "database-required" }));
+  app.get("/api/onboarding", async () => ({
+    ...store.onboarding,
+    demoAvailable: true,
+    instagramConfigured,
+    officialLimitations: [
+      "A API oficial não lista todos os seguidores.",
+      "Biografias de perfis arbitrários não ficam disponíveis.",
+      "A descoberta oficial é limitada a contas profissionais elegíveis e permissões aprovadas."
+    ]
+  }));
+  app.post("/api/onboarding/demo", async () => {
+    if (store.contacts.size === 0) {
+      seedDemo(store);
+      for (const contact of store.listContacts()) await store.persistContact(contact);
+    }
+    const onboarding = await store.completeOnboarding({ mode: "DEMO" });
+    return { onboarding, contactsImported: store.contacts.size };
+  });
+  app.post("/api/onboarding/live", async (request, reply) => {
+    if (!instagramConfigured) return reply.code(409).send({ error: "Conecte uma conta profissional elegível da Meta nas configurações do servidor antes de sincronizar." });
+    const capabilities = await provider.getCapabilities();
+    const account = await provider.getAuthorizedAccount();
+    const onboarding = await store.completeOnboarding({ mode: "LIVE", connectedAccount: account ? { instagramUserId: account.instagramUserId, username: account.username, displayName: account.displayName, accountType: account.accountType } : undefined });
+    return { onboarding, account, capabilities, nextStep: "Importe a sua exportação de seguidores para criar a base de contatos. A API oficial não enumera todos os seguidores." };
+  });
   app.get("/api/dashboard", async () => {
     const contacts = store.listContacts(); const active = store.goals.find((goal) => goal.active)!;
     const views = contacts.map((contact) => contactView(contact, active.goals, active.weights));

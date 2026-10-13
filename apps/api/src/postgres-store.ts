@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { MemoryStore, type Contact, type Evidence, type Interaction, type Pipeline, type StoredAssessment } from "./store.js";
+import { MemoryStore, type Contact, type OnboardingState, type Pipeline, type StoredAssessment } from "./store.js";
 
 const OWNER_ID = "local-owner";
 const iso = (value: Date | string | null | undefined) => value ? new Date(value).toISOString() : undefined;
@@ -13,6 +13,10 @@ export class PostgresStore extends MemoryStore {
   static async create(connectionString: string) { const store = new PostgresStore(new Pool({ connectionString })); await store.initialize(); return store; }
   private async initialize() {
     await this.pool.query('INSERT INTO "User" ("id", "email", "passwordHash", "updatedAt") VALUES ($1, $2, $3, NOW()) ON CONFLICT ("id") DO NOTHING', [OWNER_ID, "owner@local.invalid", "external-auth-required"]);
+    await this.pool.query('INSERT INTO "ApplicationSetting" ("userId", "updatedAt") VALUES ($1, NOW()) ON CONFLICT ("userId") DO NOTHING', [OWNER_ID]);
+    const setting = await this.pool.query('SELECT * FROM "ApplicationSetting" WHERE "userId" = $1', [OWNER_ID]);
+    const settingRow = setting.rows[0];
+    if (settingRow?.onboardingCompleted) this.onboarding = { completed: true, mode: settingRow.onboardingMode, completedAt: iso(settingRow.completedAt), connectedAccount: parseJson(settingRow.connectedAccount) } as OnboardingState;
     const contacts = await this.pool.query(`SELECT c.*, p."status" AS pipeline_status, p."priority" AS pipeline_priority, p."personalNotes" AS pipeline_notes, p."lastContactedAt" AS pipeline_last_contacted, p."nextFollowUpAt" AS pipeline_next_follow_up, p."updatedAt" AS pipeline_updated
       FROM "Contact" c LEFT JOIN "NetworkingPipeline" p ON p."contactId" = c."id" WHERE c."userId" = $1`, [OWNER_ID]);
     for (const row of contacts.rows) {
@@ -46,5 +50,10 @@ export class PostgresStore extends MemoryStore {
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
   override async removeContact(id: string) { const removed = this.deleteContact(id); if (removed) await this.pool.query('DELETE FROM "Contact" WHERE "id" = $1 AND "userId" = $2', [id, OWNER_ID]); return removed; }
+  override async completeOnboarding(state: Omit<OnboardingState, "completed" | "completedAt">): Promise<OnboardingState> {
+    const onboarding = await super.completeOnboarding(state);
+    await this.pool.query('UPDATE "ApplicationSetting" SET "onboardingCompleted" = true, "onboardingMode" = $2, "connectedAccount" = $3, "completedAt" = $4, "updatedAt" = NOW() WHERE "userId" = $1', [OWNER_ID, onboarding.mode ?? null, onboarding.connectedAccount ? JSON.stringify(onboarding.connectedAccount) : null, onboarding.completedAt]);
+    return onboarding;
+  }
   override async close() { await this.pool.end(); }
 }
