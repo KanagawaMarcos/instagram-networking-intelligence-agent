@@ -20,13 +20,14 @@ Import contacts → add authorized context → analyze → prioritize → manage
 - Claude-powered structured assessments when configured, plus a deterministic local demo engine when it is not.
 - An explainable, configurable scoring engine separate from the AI model.
 - An official Instagram Graph API adapter that reports each capability as available, unavailable, unauthorized, unsupported, failed, or rate-limited.
+- First-run Instagram setup in the UI, with server-side encrypted credential storage and later editing/removal in Settings.
 - BullMQ queue definitions with exponential retries, configurable concurrency, rate limits, and partial-failure recovery.
 - Fictional demo data: CTO, Staff Engineer, founder, recruiter, engineering manager, developer, technology creator, and a profile with missing information.
 
 ## Try it in three minutes
 
 1. Start the project with `pnpm dev` and open `http://localhost:3000`.
-2. On first launch, connect an already-authorized official Meta integration, or explicitly choose **Abrir demonstração** to use fictional data.
+2. On first launch, paste the Meta access token and professional account ID from the guided official setup, or explicitly choose **Abrir demonstração** to use fictional data.
 3. Import your follower export in **Importar**, then validate and confirm it.
 4. Go to **Contatos**, select one or more people, then choose **Analisar selecionados**.
 5. Open a contact to review evidence, score, opportunities, and the suggested first message. Copy it only after reviewing it.
@@ -81,7 +82,7 @@ pnpm db:seed
 
 ## Configuration
 
-Secrets remain server-side in `.env`. Set `ANTHROPIC_API_KEY` and disable `DEMO_MODE` to use Claude. For Meta, configure an eligible Business/Creator account, an access token, account ID, and approved permissions. The settings screen checks each API capability independently—it never assumes a configured integration is authorized.
+Secrets remain server-side. Set `ANTHROPIC_API_KEY` and disable `DEMO_MODE` to use Claude. For Meta, configure an eligible Business/Creator account and its approved permissions. The first-run UI and Settings page accept an access token and professional account ID, encrypt them on the server, and never return the token to the browser. The settings screen checks each API capability independently—it never assumes a configured integration is authorized.
 
 | Variable | Use |
 | --- | --- |
@@ -90,7 +91,9 @@ Secrets remain server-side in `.env`. Set `ANTHROPIC_API_KEY` and disable `DEMO_
 | `REDIS_URL` | Required by the production BullMQ worker. |
 | `ANTHROPIC_API_KEY` | Enables server-side Claude assessments. |
 | `ANTHROPIC_MODEL` | Selects the Claude model. |
-| `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` | Enables eligible official Meta capabilities only. |
+| `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` | Optional server-managed alternative to UI setup; enables eligible official Meta capabilities only. |
+| `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` | Required in production to encrypt UI-managed Meta credentials. |
+| `NEXO_INTEGRATION_SETTINGS_PATH` | Optional path for the local encrypted credential vault. |
 
 ## Privacy and platform limits
 
@@ -99,6 +102,10 @@ Secrets remain server-side in `.env`. Set `ANTHROPIC_API_KEY` and disable `DEMO_
 - No scraping, private APIs, browser automation, proxy rotation, CAPTCHA bypassing, or account rotation is used.
 - The MVP only generates, reviews, edits, and copies messages. It never sends Instagram DMs automatically.
 - Demo mode is intentionally in-memory and opt-in; outside demo mode, data is persisted in PostgreSQL.
+
+## Lead workflow within official limits
+
+The official API is not a tool for downloading an audience. The practical, compliant workflow is: export the follower usernames you already control, import that file, enrich only user-authorized or officially available information, then score and work the resulting shortlist. Owned-media comments and eligible professional discovery can add context, but they never turn unknown profiles into confirmed followers or provide arbitrary bios.
 
 ## Quality
 

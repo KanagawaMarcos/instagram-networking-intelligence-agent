@@ -12,6 +12,8 @@ const envSchema = z.object({
   INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
   INSTAGRAM_ACCOUNT_ID: z.string().min(1).optional(),
   INSTAGRAM_GRAPH_API_VERSION: z.string().default("v24.0"),
+  INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: z.string().min(32).optional(),
+  NEXO_INTEGRATION_SETTINGS_PATH: z.string().min(1).optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(3),
   ANALYSIS_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(25)
 });

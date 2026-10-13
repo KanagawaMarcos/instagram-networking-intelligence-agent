@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
+import { InMemoryCredentialStore } from "./credential-store.js";
+import { MockInstagramProvider } from "@ina/instagram";
 
 const config = { NODE_ENV: "test" as const, DEMO_MODE: true, API_PORT: 0, ANTHROPIC_MODEL: "demo", INSTAGRAM_GRAPH_API_VERSION: "v24.0", WORKER_CONCURRENCY: 1, ANALYSIS_BATCH_SIZE: 10 };
 describe("API workflow", () => {
@@ -11,6 +13,15 @@ describe("API workflow", () => {
     const demo = await app.inject({ method: "POST", url: "/api/onboarding/demo" });
     expect(demo.statusCode).toBe(200); expect(demo.json().contactsImported).toBe(8);
     expect((await app.inject("/api/onboarding")).json().mode).toBe("DEMO");
+    await app.close();
+  });
+  it("salva a configuração da integração pela API sem expor o token", async () => {
+    const credentials = new InMemoryCredentialStore();
+    const app = await buildApp({ config, credentialStore: credentials, provider: new MockInstagramProvider() });
+    const saved = await app.inject({ method: "PUT", url: "/api/integrations/instagram", payload: { accountId: "17841400000000000", accessToken: "token-de-teste-comprido" } });
+    expect(saved.statusCode).toBe(200); expect(saved.json().configured).toBe(true); expect(saved.body).not.toContain("token-de-teste-comprido");
+    expect((await credentials.get())?.accessToken).toBe("token-de-teste-comprido");
+    expect((await app.inject({ method: "POST", url: "/api/onboarding/live" })).statusCode).toBe(200);
     await app.close();
   });
   it("importa, deduplica, analisa e move um contato", async () => {

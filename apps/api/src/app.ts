@@ -3,14 +3,15 @@ import cors from "@fastify/cors";
 import { createAnalysisEngine } from "@ina/ai";
 import { loadConfig, type AppConfig } from "@ina/config";
 import { parseImport, parseManualUsernames } from "@ina/importers";
-import { InstagramGraphProvider, MockInstagramProvider, type InstagramProvider } from "@ina/instagram";
+import { InstagramGraphProvider, type InstagramProvider } from "@ina/instagram";
 import { calculateRanking } from "@ina/scoring";
 import { contactInputSchema, defaultScoringWeights, pipelineStatuses, scoringWeightsSchema, type NetworkingGoal, type PipelineStatus } from "@ina/shared";
 import { z } from "zod";
 import { MemoryStore, seedDemo, type Contact } from "./store.js";
 import { PostgresStore } from "./postgres-store.js";
+import { createCredentialStore, type CredentialStore, type InstagramCredentials } from "./credential-store.js";
 
-type AppOptions = { config?: AppConfig; store?: MemoryStore; provider?: InstagramProvider };
+type AppOptions = { config?: AppConfig; store?: MemoryStore; provider?: InstagramProvider; credentialStore?: CredentialStore };
 const queryArray = (value: unknown) => typeof value === "string" ? value.split(",").filter(Boolean) : [];
 
 function contactView(contact: Contact, goals: NetworkingGoal[], weights = defaultScoringWeights) {
@@ -22,8 +23,7 @@ function contactView(contact: Contact, goals: NetworkingGoal[], weights = defaul
 export async function buildApp(options: AppOptions = {}) {
   const config = options.config ?? loadConfig();
   const store = options.store ?? (config.DEMO_MODE ? new MemoryStore() : await PostgresStore.create(config.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/instagram_networking?schema=public"));
-  const instagramConfigured = Boolean(config.INSTAGRAM_ACCESS_TOKEN && config.INSTAGRAM_ACCOUNT_ID);
-  const provider = options.provider ?? (instagramConfigured ? new InstagramGraphProvider({ accessToken: config.INSTAGRAM_ACCESS_TOKEN, accountId: config.INSTAGRAM_ACCOUNT_ID, apiVersion: config.INSTAGRAM_GRAPH_API_VERSION }) : new MockInstagramProvider());
+  const credentialStore = options.credentialStore ?? createCredentialStore(config);
   const ai = createAnalysisEngine({ apiKey: config.ANTHROPIC_API_KEY, model: config.ANTHROPIC_MODEL, demoMode: config.DEMO_MODE });
   const app = Fastify({ logger: config.NODE_ENV !== "test" });
   await app.register(cors, { origin: true });
@@ -41,17 +41,43 @@ export async function buildApp(options: AppOptions = {}) {
     return contact;
   }
 
+  async function instagramIntegration() {
+    const stored = await credentialStore.get();
+    const environmentCredentials = config.INSTAGRAM_ACCESS_TOKEN && config.INSTAGRAM_ACCOUNT_ID ? { accessToken: config.INSTAGRAM_ACCESS_TOKEN, accountId: config.INSTAGRAM_ACCOUNT_ID } : undefined;
+    const credentials: Pick<InstagramCredentials, "accessToken" | "accountId"> | undefined = stored ?? environmentCredentials;
+    const provider = options.provider ?? new InstagramGraphProvider({ accessToken: credentials?.accessToken, accountId: credentials?.accountId, apiVersion: config.INSTAGRAM_GRAPH_API_VERSION });
+    const localStatus = await credentialStore.status();
+    return { credentials, provider, status: stored ? localStatus : environmentCredentials ? { configured: true, source: "ENVIRONMENT" as const, accountIdHint: `••••${environmentCredentials.accountId.slice(-6)}`, encryption: "ENVIRONMENT_KEY" as const } : localStatus };
+  }
+
   app.get("/health", async () => ({ status: "ok", demoMode: config.DEMO_MODE, persistence: config.DEMO_MODE ? "memory-demo" : "database-required" }));
-  app.get("/api/onboarding", async () => ({
-    ...store.onboarding,
-    demoAvailable: true,
-    instagramConfigured,
-    officialLimitations: [
+  app.get("/api/onboarding", async () => {
+    const integration = await instagramIntegration();
+    return {
+      ...store.onboarding,
+      demoAvailable: true,
+      instagramConfigured: Boolean(integration.credentials),
+      instagramConfiguration: integration.status,
+      officialLimitations: [
       "A API oficial não lista todos os seguidores.",
       "Biografias de perfis arbitrários não ficam disponíveis.",
       "A descoberta oficial é limitada a contas profissionais elegíveis e permissões aprovadas."
-    ]
-  }));
+      ]
+    };
+  });
+  app.get("/api/integrations/instagram", async () => {
+    const integration = await instagramIntegration();
+    return integration.status;
+  });
+  app.put("/api/integrations/instagram", async (request) => {
+    const body = z.object({ accessToken: z.string().min(10).max(10_000), accountId: z.string().min(1).max(100).regex(/^\d+$/, "Use o ID numérico da conta profissional do Instagram.") }).parse(request.body);
+    await credentialStore.save(body);
+    return credentialStore.status();
+  });
+  app.delete("/api/integrations/instagram", async () => {
+    await credentialStore.clear();
+    return credentialStore.status();
+  });
   app.post("/api/onboarding/demo", async () => {
     if (store.contacts.size === 0) {
       seedDemo(store);
@@ -61,9 +87,10 @@ export async function buildApp(options: AppOptions = {}) {
     return { onboarding, contactsImported: store.contacts.size };
   });
   app.post("/api/onboarding/live", async (request, reply) => {
-    if (!instagramConfigured) return reply.code(409).send({ error: "Conecte uma conta profissional elegível da Meta nas configurações do servidor antes de sincronizar." });
-    const capabilities = await provider.getCapabilities();
-    const account = await provider.getAuthorizedAccount();
+    const integration = await instagramIntegration();
+    if (!integration.credentials) return reply.code(409).send({ error: "Informe o token de acesso e o ID da conta profissional no onboarding para sincronizar." });
+    const capabilities = await integration.provider.getCapabilities();
+    const account = await integration.provider.getAuthorizedAccount();
     const onboarding = await store.completeOnboarding({ mode: "LIVE", connectedAccount: account ? { instagramUserId: account.instagramUserId, username: account.username, displayName: account.displayName, accountType: account.accountType } : undefined });
     return { onboarding, account, capabilities, nextStep: "Importe a sua exportação de seguidores para criar a base de contatos. A API oficial não enumera todos os seguidores." };
   });
@@ -115,7 +142,7 @@ export async function buildApp(options: AppOptions = {}) {
   app.patch("/api/contacts/:id/pipeline", async (request, reply) => { const values = z.object({ status: z.enum(pipelineStatuses).optional(), priority: z.number().int().min(0).max(3).optional(), personalNotes: z.string().max(5000).optional(), nextFollowUpAt: z.string().datetime().nullable().optional(), lastContactedAt: z.string().datetime().nullable().optional() }).parse(request.body); const contact = store.contacts.get((request.params as { id: string }).id); if (!contact) return reply.code(404).send({ error: "Contato não encontrado" }); Object.assign(contact.pipeline, values, { updatedAt: new Date().toISOString() }); if (values.personalNotes !== undefined) contact.personalNotes = values.personalNotes; await store.persistContact(contact); const active = store.goals.find((goal) => goal.active)!; return contactView(contact, active.goals, active.weights); });
   app.get("/api/board", async () => { const active = store.goals.find((goal) => goal.active)!; return Object.fromEntries(pipelineStatuses.map((status) => [status, store.listContacts().filter((contact) => contact.pipeline.status === status).map((contact) => contactView(contact, active.goals, active.weights))])); });
   app.get("/api/recommendations", async () => { const active = store.goals.find((goal) => goal.active)!; const contacts = store.listContacts().filter((contact) => contact.assessment).map((contact) => contactView(contact, active.goals, active.weights)).sort((a, b) => (b.ranking?.finalScore ?? 0) - (a.ranking?.finalScore ?? 0)); return { data: contacts, grouped: Object.fromEntries(["FOUNDER", "RECRUITER", "TECH_LEADER", "ENGINEER", "CREATOR", "COLLABORATOR"].map((category) => [category, contacts.filter((contact) => contact.assessment?.category === category)])) }; });
-  app.get("/api/settings", async () => ({ demoMode: config.DEMO_MODE, goals: store.goals, capabilities: await provider.getCapabilities(), ai: { configured: Boolean(config.ANTHROPIC_API_KEY), model: config.ANTHROPIC_MODEL, activeEngine: config.DEMO_MODE || !config.ANTHROPIC_API_KEY ? "demo" : "claude" } }));
+  app.get("/api/settings", async () => { const integration = await instagramIntegration(); return { demoMode: config.DEMO_MODE, goals: store.goals, integration: integration.status, capabilities: await integration.provider.getCapabilities(), ai: { configured: Boolean(config.ANTHROPIC_API_KEY), model: config.ANTHROPIC_MODEL, activeEngine: config.DEMO_MODE || !config.ANTHROPIC_API_KEY ? "demo" : "claude" } }; });
   app.put("/api/settings/goals", async (request) => { const body = z.object({ name: z.string().min(1).max(80), goals: z.array(z.enum(["FOUNDERS", "RECRUITERS", "SENIOR_ENGINEERS", "TECH_LEADERS", "TECH_CREATORS", "COLLABORATION"])).min(1), weights: scoringWeightsSchema }).parse(request.body); const configGoal = { id: crypto.randomUUID(), ...body, active: true }; store.goals.forEach((goal) => { goal.active = false; }); store.goals.push(configGoal); return configGoal; });
   return app;
 }

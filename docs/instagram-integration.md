@@ -18,7 +18,9 @@ Cada capability é verificada de forma independente e devolve um dos estados: `A
 
 ## OAuth e configuração
 
-Use uma conta Business/Creator, app Meta, fluxo OAuth documentado e token de longa duração no servidor. Preencha `INSTAGRAM_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID` e `INSTAGRAM_GRAPH_API_VERSION`; nunca exponha `META_APP_SECRET` ou token ao navegador. Caso uma capability retorne `429`, o worker deve respeitar `Retry-After`, backoff e a política de taxa da plataforma.
+Use uma conta Business/Creator, app Meta, fluxo OAuth documentado e token de longa duração no servidor. O onboarding e a página **Configurações** explicam onde obter os dois valores: em [Meta for Developers](https://developers.facebook.com/apps/) crie/selecione a app e adicione Instagram API; gere o token pelo fluxo apropriado ou [Graph API Explorer](https://developers.facebook.com/tools/explorer/); obtenha o ID numérico retornado pelo seu fluxo. No Facebook Login ele é `instagram_business_account.id` da Página vinculada; no Instagram Login é o `id` retornado para o usuário Instagram. A [Instagram Platform](https://developers.facebook.com/docs/instagram-platform/) documenta as duas variações.
+
+Os valores podem ser fornecidos pela UI. O token não retorna ao navegador depois do envio e fica em um arquivo local criptografado e ignorado pelo Git (`.nexo/instagram-credentials.enc`); em produção, `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` é obrigatória. `INSTAGRAM_ACCESS_TOKEN` e `INSTAGRAM_ACCOUNT_ID` continuam como alternativa de configuração de servidor. Nunca exponha `META_APP_SECRET` ou token ao navegador. Caso uma capability retorne `429`, o worker deve respeitar `Retry-After`, backoff e a política de taxa da plataforma.
 
 ## Avaliação dos repositórios solicitados
 
